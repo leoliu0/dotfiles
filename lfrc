@@ -1,0 +1,270 @@
+# interpreter for shell commands (needs to be POSIX compatible)
+set shell sh
+set icons on
+# set color256 on
+
+# set '-eu' options for shell commands
+# These options are used to have safer shell commands. Option '-e' is used to
+# exit on error and option '-u' is used to give error for unset variables.
+# Option '-f' disables pathname expansion which can be useful when $f, $fs, and
+# $fx variables contain names with '*' or '?' characters. However, this option
+# is used selectively within individual commands as it can be limiting at
+# times.
+set shellopts '-eu'
+set preview on
+
+# set internal field separator (IFS) to "\n" for shell commands
+# This is useful to automatically split file names in $fs and $fx properly
+# since default file separator used in these variables (i.e. 'filesep' option)
+# is newline. You need to consider the values of these options and create your
+# commands accordingly.
+set ifs "\n"
+
+set reverse on
+set sortby time
+
+# leave some space at the top and the bottom of the screen
+set scrolloff 10
+
+# use enter for shell commands
+map <enter> shell
+
+# execute current file (must be executable)
+map x $$f
+map X !$f
+
+# dedicated keys for file opener actions
+map o &mimeopen $f
+map O $mimeopen --ask $f
+
+# define a custom 'open' command
+# This command is called when current file is not a directory. You may want to
+# use either file extensions and/or mime types here. Below uses an editor for
+# text files and a file opener for the rest.
+cmd open ${{
+    # set -f
+	pwd > /tmp/last_dir
+    case $f in
+        *.dta) open_stata $fx;;
+        *.do) open_stata $fx;;
+        *.tex) nvim $fx;;
+        *.json) nvim $fx;;
+        *.toml) nvim $fx;;
+        *.py) nvim $fx;;
+        *.sh) nvim $fx;;
+        *.rs) nvim $fx;;
+        *.go) nvim $fx;;
+        *.sas) nvim $fx;;
+        *.sql) nvim $fx;;
+        *.ms) nvim $fx;;
+        *.md) nvim $fx;;
+        *.txt) nvim $fx;;
+        *.csv) nvim $fx;;
+        *.bib) nvim $fx;;
+        *.sty) nvim $fx;;
+        *.bst) nvim $fx;;
+        *.R) nvim $fx;;
+        *.tar.bz|*.tar.bz2|*.tbz|*.tbz2) tar xjvf $f;;
+        *.tar.gz|*.tgz) tar xzvf $f;;
+        *.tar.xz|*.txz) tar xJvf $f;;
+        *.zip) unzip $f;;
+        *.rar) unrar x $f;;
+        *.7z) 7z x $f;;
+        *.gz) gunzip -k $f;;
+        *) for f in $fx; do setsid $OPENER $f > /dev/null 2> /dev/null & done;;
+    esac
+}}
+
+
+cmd runit ${{
+    # set -f
+	pwd > /tmp/last_dir
+    case $f in
+        *.do) stata-mp -b $fx;;
+        *.py) python $fx;;
+    esac
+}}
+# define a custom 'rename' command without prompt for overwrite
+cmd rename %[ -e $1 ] && printf "file exists" || mv $f $1
+# map a push :rename<space>$fx
+map a ${{
+lf -remote "send $id push :rename<space>$(basename $f)"
+}}
+
+
+map m push $mkdir<space>-p<space>
+
+# make sure trash folder exists
+# %mkdir -p ~/.trash
+
+# move current file or selected files to trash folder
+# (also see 'man mv' for backup/overwrite options)
+cmd trash %set -f; mv $fx ~/.trash
+
+# define a custom 'delete' command
+cmd delete ${{
+    set -f
+    printf "$fx\n"
+    printf "delete?[y/n]"
+    read ans
+    [ $ans = "y" ] && rm -rf $fx
+}}
+
+
+# use '<delete>' key for either 'trash' or 'delete' command
+# map <delete> trash
+map D delete
+
+cmd paste %{{
+    load=$(lf -remote 'load')
+    mode=$(echo "$load" | sed -n '1p')
+    list=$(echo "$load" | sed '1d')
+    if [ $mode = 'copy' ]; then
+        cp -R $list .
+    elif [ $mode = 'move' ]; then
+        mv $list .
+    fi
+    lf -remote 'send load'
+    lf -remote 'send clear'
+}}
+
+# extract the current file with the right command
+# (xkcd link: https://xkcd.com/1168/)
+cmd extract ${{
+    set -f
+    case $f in
+        *.tar.bz|*.tar.bz2|*.tbz|*.tbz2) tar xjvf $f;;
+        *.tar.gz|*.tgz) tar xzvf $f;;
+        *.tar.xz|*.txz) tar xJvf $f;;
+        *.zip) unzip $f;;
+        *.rar) unrar x $f;;
+        *.7z) 7z x $f;;
+        *.gz) gunzip -k $f;;
+    esac
+}}
+
+# compress current file or selected files with tar and gunzip
+cmd tar ${{
+    set -f
+    mkdir $1
+    cp -r $fx $1
+    tar czf $1.tar.gz $1
+    rm -rf $1
+}}
+
+# compress current file or selected files with zip
+cmd zip ${{
+    set -f
+    mkdir $1
+    cp -r $fx $1
+    zip -r $1.zip $1
+    rm -rf $1
+}}
+
+cmd scaleit ${{
+	pdfjam $fx --scale 1.1 --outfile $fx
+}}
+
+cmd printit ${{
+	lp $fx
+}}
+
+cmd sendit ${{
+	neomutt -a $fx
+}}
+
+cmd scim ${{ sc-im $fx }}
+cmd pdf ${{ pdf $fx }}
+cmd echoit ${{
+	file=$f | cut -d . -f1
+	echo $(file) }}
+cmd stata ${{ xstata-mp $fx }}
+cmd nvim ${{pwd > /tmp/last_dir; nvim $fx }}
+
+cmd quitit ${{
+	pwd > /tmp/last_dir
+	lf -remote "send $id quit"
+}}
+
+cmd drag ${{
+	dragon-drag-and-drop $fx
+}}
+
+cmd rpath $realpath $fx | tr -d '\n' | xclip -selection clipboard
+
+cmd fname ${{
+(basename $fx | tr -d '\n' | xclip -selection clipboard) &&
+notify-send " LF: file name copied to clipboard !"
+}}
+
+map st :{{
+	set reverse;
+    set sortby time;
+    set info time;
+    top
+}}
+
+map sn :{{
+    set sortby natural;
+    set info ;
+    top
+}}
+
+cmd copytoclip ${{
+	(cat $fx | xclip -selection clipboard) &&
+	notify-send "LF: $fx has been copied to clipboard!"
+}}
+
+
+cmd compileit ${{
+	just compile
+}}
+
+cmd viewpdf %{{
+	just viewpdf
+}}
+
+cmd inspect ${{
+	bat $fx --pager "less -Ri"
+}}
+
+cmd findit ${{
+	fzf
+}}
+
+cmd cleanup %{{
+	latexmk -c
+	rm *.log
+}}
+
+map gd cd /mnt/da/Dropbox
+map gw cd /home/leo/Downloads
+map gu cd /home/leo/Documents
+map gc cd /mnt/da/Dropbox/Chris-Leo-Corla
+map gb cd /home/leo/bin
+map gt cd /tmp/
+map gn cd /mnt/da/Dropbox/Van
+map gv cd /mnt/da/Dropbox/Raphale_Leo/MFIN6201
+map gr cd /mnt/da/Dropbox/Raphale_Leo/Hedge_fund
+map gl cd /mnt/da/Dropbox/WingWah-Leo/
+map g1 cd /mnt/da/Dropbox/WingWah-Leo/1.Trademarks/Paper/
+map g2 cd /mnt/da/Dropbox/WingWah-Leo/2.process_innovation/paper
+map g3 cd /mnt/da/Dropbox/WingWah-Leo/3.green_innovation/paper1_general
+map gm cd /mnt
+map gs scaleit
+map gp printit
+map ga sendit
+map ts stata
+map tt compileit
+map e extract
+map q quitit
+map w nvim
+map bd drag
+map bp rpath
+map bf fname
+map bc copytoclip
+map i inspect
+map z viewpdf
+map f findit
+map u runit
+map <esc> cleanup
